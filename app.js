@@ -10,6 +10,35 @@
     moms: { label: "Mom’s Kitchen", desc: "Kids’ weekly veggie & tiffin kits" },
     family: { label: "Family Kitchen", desc: "Complete weekly family basket" },
   };
+  const PACKAGES = [
+    {
+      id: "kids",
+      name: "Kids Tiffin",
+      price: "₹1,999 / week",
+      blurb: "Raw essentials for healthy school lunches.",
+      nudge: "Most popular",
+      art: "kids",
+      homeTab: "moms",
+    },
+    {
+      id: "family",
+      name: "Family",
+      price: "₹3,499 / week",
+      blurb: "Complete weekly kit for home meals.",
+      nudge: "",
+      art: "family",
+      homeTab: "family",
+    },
+    {
+      id: "addon",
+      name: "Add-on",
+      price: "from ₹149",
+      blurb: "Extras that pair with any package.",
+      nudge: "",
+      art: "addon",
+      homeTab: "ondemand",
+    },
+  ];
   const img = (id, w = 600) =>
     `https://images.unsplash.com/${id}?auto=format&fit=crop&w=${w}&q=80`;
 
@@ -81,6 +110,8 @@
     country: "+91",
     user: { name: "Ananya Rao", phone: "", avatar: "AR", address: "12 Palm Grove, Indiranagar", city: "Bengaluru 560038", wallet: 420 },
     locationGranted: false,
+    packageId: null,
+    packageChosen: false,
     homeTab: "ondemand",
     odCategory: "Veggies",
     kids: 2,
@@ -120,6 +151,7 @@
     login: "Login · Smart Green",
     otp: "Enter OTP · Smart Green",
     location: "Location · Smart Green",
+    packages: "Choose package · Smart Green",
     home: "Home · Smart Green",
     cart: "Your Cart · Smart Green",
     checkout: "Checkout · Smart Green",
@@ -137,6 +169,7 @@
     try {
       localStorage.setItem(STORAGE, JSON.stringify({
         phone: state.phone, user: state.user, locationGranted: state.locationGranted,
+        packageId: state.packageId, packageChosen: state.packageChosen,
         cart: state.cart, savedLater: state.savedLater, kids: state.kids, family: state.family,
         momsExtras: state.momsExtras, delivery: state.delivery, homeTab: state.homeTab, odDraft: state.odDraft,
       }));
@@ -158,6 +191,8 @@
       if (d.phone) state.phone = d.phone;
       if (d.user) Object.assign(state.user, d.user);
       if (d.locationGranted) state.locationGranted = d.locationGranted;
+      if (d.packageId && PACKAGES.some((p) => p.id === d.packageId)) state.packageId = d.packageId;
+      if (d.packageChosen) state.packageChosen = true;
       if (Array.isArray(d.cart)) state.cart = d.cart;
       if (Array.isArray(d.savedLater)) state.savedLater = d.savedLater;
       if (d.kids) state.kids = d.kids;
@@ -212,8 +247,12 @@
     const [screen, tab] = raw.split("/");
     const allowed = Object.keys(TITLES);
     if (!allowed.includes(screen)) return false;
-    if (["home", "cart", "checkout", "nutri", "orders", "success"].includes(screen) && !(state.locationGranted && state.phone)) {
+    if (["home", "cart", "checkout", "nutri", "orders", "success", "packages"].includes(screen) && !(state.locationGranted && state.phone)) {
       state.screen = state.phone ? "location" : "login";
+      return true;
+    }
+    if (["home", "cart", "checkout", "nutri", "orders", "success"].includes(screen) && state.locationGranted && state.phone && !state.packageChosen) {
+      state.screen = "packages";
       return true;
     }
     state.screen = screen;
@@ -376,8 +415,44 @@
     ensureMomsFreebies();
   }
 
+  function postAuthScreen() {
+    if (!state.locationGranted) return "location";
+    if (!state.packageChosen) return "packages";
+    return "home";
+  }
+
+  function selectedPackage() {
+    return PACKAGES.find((p) => p.id === state.packageId) || null;
+  }
+
+  function packageArt(kind) {
+    if (kind === "family") {
+      return `<svg viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <rect width="72" height="72" fill="#fce8dc"/>
+        <ellipse cx="36" cy="48" rx="22" ry="12" fill="#c4785a"/>
+        <circle cx="28" cy="34" r="8" fill="#e8b86d"/>
+        <circle cx="44" cy="32" r="7" fill="#f5c6aa"/>
+        <circle cx="36" cy="26" r="6" fill="#a35c42"/>
+      </svg>`;
+    }
+    if (kind === "addon") {
+      return `<svg viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <rect width="72" height="72" fill="#fff6e8"/>
+        <rect x="18" y="28" width="36" height="24" rx="6" fill="#e8b86d"/>
+        <circle cx="30" cy="24" r="6" fill="#f5c6aa"/>
+        <circle cx="44" cy="22" r="5" fill="#c9953a"/>
+      </svg>`;
+    }
+    return `<svg viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <rect width="72" height="72" fill="#f3e0d8"/>
+      <rect x="20" y="22" width="32" height="10" rx="3" fill="#c4785a"/>
+      <rect x="17" y="32" width="38" height="16" rx="4" fill="#a35c42"/>
+      <rect x="30" y="14" width="8" height="10" rx="2" fill="#e8b86d"/>
+    </svg>`;
+  }
+
   async function go(screen, opts = {}) {
-    const order = ["splash", "login", "otp", "location", "home", "cart", "checkout", "success", "nutri", "orders"];
+    const order = ["splash", "login", "otp", "location", "packages", "home", "cart", "checkout", "success", "nutri", "orders"];
     const from = order.indexOf(state.screen);
     const to = order.indexOf(screen);
     if (from >= 0 && to >= 0 && from !== to) state.navDir = to >= from ? 1 : -1;
@@ -394,7 +469,7 @@
     state.profileOpen = false;
     save();
     syncHash(!!opts.replaceHash);
-    if (["home", "cart", "checkout"].includes(screen) && !opts.silent) await showLoader(120);
+    if (["home", "cart", "checkout", "packages"].includes(screen) && !opts.silent) await showLoader(120);
     scheduleRender({ keepScroll: !!opts.keepScroll, focus: opts.focus, announce: !opts.keepScroll });
     if (!opts.keepScroll) window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -537,6 +612,50 @@
       <div class="space-y-3 mt-6">
         <button type="button" id="grantLoc" class="w-full h-14 rounded-2xl bg-terra text-white font-extrabold text-lg">Allow Location</button>
         <button type="button" id="skipLoc" class="w-full h-12 font-bold text-ink-mute">Enter address manually</button>
+      </div>
+    </section>`;
+  }
+
+  function renderPackages() {
+    const pkg = selectedPackage();
+    return `<section class="screen pkg-screen px-5 pt-8" aria-labelledby="pkgTitle">
+      <header class="pkg-hero">
+        <div class="logo-mark sm mb-3">${logoSvg(26)}</div>
+        <p class="pkg-eyebrow font-mr">तुमचं हिरवं, स्मार्ट घर</p>
+        <h1 id="pkgTitle" class="font-display text-[1.85rem] leading-tight font-semibold">Choose your package</h1>
+        <p class="pkg-lede">One plan for your home. Fresh prep, made simple.</p>
+      </header>
+      <div class="pkg-list" role="radiogroup" aria-label="Packages">
+        ${PACKAGES.map((p) => {
+          const on = state.packageId === p.id;
+          return `<button type="button" class="pkg-card${on ? " is-selected" : ""}" role="radio" aria-checked="${on}" data-select-package="${p.id}" data-focus="pkg-${p.id}">
+            <span class="pkg-radio" aria-hidden="true"><span class="pkg-radio-dot"></span></span>
+            <span class="pkg-body">
+              <span class="pkg-name-row">
+                <span class="pkg-name">${p.name}</span>
+                ${p.nudge ? `<span class="pkg-nudge">${p.nudge}</span>` : ""}
+              </span>
+              <span class="pkg-price">${p.price}</span>
+              <span class="pkg-blurb">${p.blurb}</span>
+            </span>
+            <span class="pkg-thumb">${packageArt(p.art)}</span>
+          </button>`;
+        }).join("")}
+      </div>
+      <p class="pkg-trust" aria-hidden="true">
+        <span>Fresh ingredients</span>
+        <span aria-hidden="true">·</span>
+        <span>Weekly planning</span>
+      </p>
+      <div class="pkg-bar">
+        <div class="pkg-summary">
+          <span class="pkg-summary-label">${pkg ? "Selected" : "Select a package"}</span>
+          <strong>${pkg ? `${pkg.name} · ${pkg.price}` : "—"}</strong>
+        </div>
+        <button type="button" class="pkg-continue" id="pkgContinue" data-focus="pkgContinue" ${pkg ? "" : "disabled"}>
+          Continue
+          <span aria-hidden="true">→</span>
+        </button>
       </div>
     </section>`;
   }
@@ -1035,6 +1154,7 @@
       </div>
       <button type="button" data-go="nutri" class="mt-4 w-full h-12 rounded-2xl bg-white border border-black/8 font-extrabold">Open Nutri-Tracker</button>
       <button type="button" data-go="orders" class="mt-2 w-full h-12 rounded-2xl bg-white border border-black/8 font-extrabold">View My Orders</button>
+      <button type="button" id="changePackage" class="mt-2 w-full h-12 rounded-2xl bg-white border border-black/8 font-extrabold">Change package</button>
       <button type="button" id="logout" class="mt-2 w-full h-12 rounded-2xl text-ink-mute font-bold">Log out</button>
     </div>`;
   }
@@ -1157,6 +1277,7 @@
   function render(opts = {}) {
     const map = {
       splash: renderSplash, login: renderLogin, otp: renderOtp, location: renderLocation,
+      packages: renderPackages,
       home: renderHome, cart: renderCart, checkout: renderCheckout, success: renderSuccess,
       nutri: renderNutri, orders: renderOrders,
     };
@@ -1249,14 +1370,14 @@
     screensEl.querySelectorAll("[data-flag]").forEach((btn) => btn.addEventListener("click", () => { state.country = btn.dataset.flag; state.flagsOpen = false; render(); }));
     $("#googleSignIn")?.addEventListener("click", async () => {
       state.phone = state.phone || "9876543210"; state.user.phone = state.phone;
-      await showLoader(400); toast("Signed in with Google"); go(state.locationGranted ? "home" : "location");
+      await showLoader(400); toast("Signed in with Google"); go(postAuthScreen());
     });
 
     const submitOtp = async () => {
       const code = [...screensEl.querySelectorAll("[data-otp]")].map((i) => i.value).join("");
       if (code.length < 4) return toast("Enter the 4-digit OTP");
       if (code !== "1234" && code !== "0000") return toast("Try 1234 for this demo");
-      await showLoader(300); toast("Verified"); go(state.locationGranted ? "home" : "location");
+      await showLoader(300); toast("Verified"); go(postAuthScreen());
     };
     screensEl.querySelectorAll("[data-otp]").forEach((input, idx, list) => {
       input.addEventListener("input", () => {
@@ -1283,9 +1404,31 @@
       }
       await showLoader(220);
       toast("Location enabled");
-      go("home", { replaceHash: true });
+      go(state.packageChosen ? "home" : "packages", { replaceHash: true });
     });
-    $("#skipLoc")?.addEventListener("click", () => { state.locationGranted = true; go("home", { replaceHash: true }); });
+    $("#skipLoc")?.addEventListener("click", () => {
+      state.locationGranted = true;
+      go(state.packageChosen ? "home" : "packages", { replaceHash: true });
+    });
+
+    screensEl.querySelectorAll("[data-select-package]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.packageId = btn.dataset.selectPackage;
+        focusKey = `pkg-${state.packageId}`;
+        scheduleRender({ keepScroll: true, focus: focusKey });
+      });
+    });
+    $("#pkgContinue")?.addEventListener("click", async () => {
+      const pkg = selectedPackage();
+      if (!pkg) return toast("Select a package to continue");
+      state.packageChosen = true;
+      toast(`${pkg.name} selected`);
+      await go("home", { homeTab: pkg.homeTab, replaceHash: true });
+    });
+    drawerEl.querySelector("#changePackage")?.addEventListener("click", () => {
+      state.profileOpen = false;
+      go("packages");
+    });
 
     screensEl.querySelectorAll("[data-home-tab]").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -1514,7 +1657,11 @@
     });
     screensEl.querySelectorAll("[data-support]").forEach((btn) => btn.addEventListener("click", () => toast(`Support connected for ${btn.dataset.support}`)));
     drawerEl.querySelector("#logout")?.addEventListener("click", () => {
-      state.locationGranted = false; state.profileOpen = false; go("splash");
+      state.locationGranted = false;
+      state.packageChosen = false;
+      state.packageId = null;
+      state.profileOpen = false;
+      go("splash");
     });
   }
 
@@ -1534,7 +1681,9 @@
   load();
   seedFamily();
   if (!applyHash()) {
-    if (state.locationGranted && state.phone) state.screen = "home";
+    if (state.locationGranted && state.phone) {
+      state.screen = state.packageChosen ? "home" : "packages";
+    }
   }
   syncHash(true);
   scheduleRender();

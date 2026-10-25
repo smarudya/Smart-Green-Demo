@@ -102,8 +102,9 @@ Track              →      Success timelines → My Orders
 | `splash` | Brand hero + Get Started | Cold start | → `login` |
 | `login` | Phone / OTP send / Google | Splash | → `otp` / `location`/`home` |
 | `otp` | 4-digit OTP | Login | → `location`/`home` |
-| `location` | Allow / manual skip | Auth | → `home` |
-| `home` | Header + journeys + pane | Auth complete | → cart / location / profile / tabs |
+| `location` | Allow / manual skip | Auth | → `packages` (or `home` if package already chosen) |
+| `packages` | Kids / Family / Add-on pick → maps to journey tab | Location done | → `home` with `homeTab` |
+| `home` | Header + journeys + pane | Package chosen | → cart / location / profile / tabs |
 | `cart` | 3-section cart | Sticky bar / header cart | → checkout / home modes |
 | `checkout` | Address · schedule · pay | Cart CTA | → `success` |
 | `success` | Confirmation | Pay confirm | → orders / home |
